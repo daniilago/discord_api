@@ -2,16 +2,14 @@ import pandas as pd
 import re
 
 def count_emojis(text):
-    """Count emoji characters in text"""
     if pd.isna(text):
         return 0
-    # Simple emoji pattern - matches common emoji ranges
     emoji_pattern = re.compile(
         "["
-        "\U0001F600-\U0001F64F"  # emoticons
-        "\U0001F300-\U0001F5FF"  # symbols & pictographs
-        "\U0001F680-\U0001F6FF"  # transport & map symbols
-        "\U0001F1E0-\U0001F1FF"  # flags (iOS)
+        "\U0001F600-\U0001F64F"
+        "\U0001F300-\U0001F5FF"
+        "\U0001F680-\U0001F6FF"
+        "\U0001F1E0-\U0001F1FF"
         "\U00002702-\U000027B0"
         "\U000024C2-\U0001F251"
         "]+",
@@ -20,129 +18,107 @@ def count_emojis(text):
     return len(emoji_pattern.findall(str(text)))
 
 def top_posters(df, n=10):
-    """Who sends the most messages"""
-    counts = df['autor'].value_counts().head(n)
-    return counts
+    return df['autor'].value_counts().head(n)
 
 def top_emoji_users(df, n=10):
-    """Who uses the most emojis (total and per message)"""
+    df = df.copy()
     df['emoji_count'] = df['conteudo'].apply(count_emojis)
     total_emojis = df.groupby('autor')['emoji_count'].sum().sort_values(ascending=False).head(n)
     avg_emojis = df.groupby('autor')['emoji_count'].mean().sort_values(ascending=False).head(n)
     return total_emojis, avg_emojis
 
 def longest_messages(df, n=10):
-    """Who writes the longest messages (by average length)"""
     if 'message_length' in df.columns:
         avg_length = df.groupby('autor')['message_length'].mean().sort_values(ascending=False).head(n)
     else:
-        # Compute message length from content
         df_temp = df.copy()
         df_temp['message_length'] = df_temp['conteudo'].astype(str).str.len()
         avg_length = df_temp.groupby('autor')['message_length'].mean().sort_values(ascending=False).head(n)
     return avg_length
 
 def most_mentioned_users(df, n=10):
-    """Who is mentioned the most in messages"""
     all_mentions = []
     for mentions_str in df['mentioned_users'].dropna():
         if mentions_str:
             all_mentions.extend(mentions_str.split(','))
-
     if all_mentions:
-        mention_counts = pd.Series(all_mentions).value_counts().head(n)
-    else:
-        mention_counts = pd.Series(dtype=int)
-    return mention_counts
+        return pd.Series(all_mentions).value_counts().head(n)
+    return pd.Series(dtype=int)
 
-def fastest_repliers(df, n=10):
-    """Who replies the fastest (average response time in minutes)"""
-    # Convert data to datetime - handle various formats
-    if df['data'].dtype == 'object':
-        df['data'] = pd.to_datetime(df['data'], format='mixed')
-    df_sorted = df.sort_values('data')
+def print_all_filters(server_name: str, channel_name: str):
+    df = pd.read_csv(f"dados/channel_history/{server_name}/{channel_name}.csv")
 
-    # Build a map of message ID to author and timestamp
-    msg_map = df_sorted.set_index('id')[['autor', 'data']].to_dict('index')
+    print("=== HISTÓRICO GERAL DO CANAL ===\n")
 
-    # Track reply times
-    reply_times = []
-
-    for _, row in df_sorted.iterrows():
-        if pd.notna(row['reply_to_id']) and row['reply_to_id'] in msg_map:
-            original_msg = msg_map[row['reply_to_id']]
-            time_diff = (row['data'] - original_msg['data']).total_seconds() / 60
-            reply_times.append({
-                'replier': row['autor'],
-                'reply_time_minutes': time_diff
-            })
-
-    if reply_times:
-        reply_df = pd.DataFrame(reply_times)
-        avg_reply_time = reply_df.groupby('replier')['reply_time_minutes'].mean().sort_values().head(n)
-        reply_count = reply_df['replier'].value_counts().head(n)
-        return avg_reply_time, reply_count
-    else:
-        return pd.Series(dtype=float), pd.Series(dtype=int)
-
-def print_all_filters():
-    """Run all filter analyses"""
-    df = pd.read_csv("discord_data.csv")
-
-    print("=== DISCORD ACTIVITY FILTERS ===\n")
-
-    # 1. Most Active (by message count)
-    print("1. WHO TALKS MOST (by message count):")
+    print("1. QUEM MAIS FALA (por quantidade de mensagens):")
     print(top_posters(df, n=10))
     print()
 
-    # 2. Emoji Users
-    print("2. WHO USES MORE EMOJIS (total emojis):")
+    print("2. QUEM MAIS USA EMOJIS (total de emojis):")
     total_emojis, avg_emojis = top_emoji_users(df, n=10)
     print(total_emojis)
-    print("\n   (avg emojis per message):")
+    print("\n   (média de emojis por mensagem):")
     print(avg_emojis)
     print()
 
-    # 3. Longest Messages
-    print("3. WHO WRITES THE LONGEST MESSAGES (avg characters):")
+    print("3. QUEM ESCREVE AS MENSAGENS MAIS LONGAS (média de caracteres):")
     print(longest_messages(df, n=10))
     print()
 
-    # 4. Most Mentioned
-    print("4. WHO IS MORE MENTIONED:")
+    print("4. QUEM É MAIS MENCIONADO:")
     if 'mentioned_users' in df.columns:
         mentioned = most_mentioned_users(df, n=10)
         if len(mentioned) > 0:
             print(mentioned)
         else:
-            print("(No mentions in dataset)")
+            print("(Nenhuma menção encontrada)")
     else:
-        print("(Column 'mentioned_users' missing - re-run collect.py with updated code)")
+        print("(Coluna 'mentioned_users' não encontrada - rode o collect novamente)")
     print()
 
-    # 5. Reply Speed
-    # print("5. WHO REPLIES FASTEST (avg minutes):")
-    # if 'reply_to_id' in df.columns:
-    #     avg_time, count = fastest_repliers(df, n=10)
-    #     if len(avg_time) > 0:
-    #         print(avg_time)
-    #         print("\n   (number of replies):")
-    #         print(count)
-    #     else:
-    #         print("(No replies in dataset)")
-    # else:
-    #     print("(Column 'reply_to_id' missing - re-run collect.py with updated code)")
-    # print()
-
-    # 6. Overall activity summary
-    print("6. ACTIVITY SUMMARY:")
-    print(f"Total messages: {len(df)}")
-    print(f"Unique authors: {df['autor'].nunique()}")
+    print("5. RESUMO GERAL:")
+    print(f"Total de mensagens: {len(df)}")
+    print(f"Usuários únicos: {df['autor'].nunique()}")
     if 'data' in df.columns:
-        print(f"Time period: {df['data'].min()} to {df['data'].max()}")
-    print(f"Messages with reactions: {(df['reacoes'] > 0).sum()}")
-    print(f"Messages with attachments: {df['tem_anexo'].sum()}")
+        print(f"Período: {df['data'].min()} até {df['data'].max()}")
+    print(f"Mensagens com reações: {(df['reacoes'] > 0).sum()}")
+    print(f"Mensagens com anexos: {df['tem_anexo'].sum()}")
     if 'menciona_alguem' in df.columns:
-        print(f"Messages that mention someone: {df['menciona_alguem'].sum()}")
+        print(f"Mensagens que mencionam alguém: {df['menciona_alguem'].sum()}")
 
+def analyse_user(username: str, server_name: str, channel_name: str):
+    df = pd.read_csv(f"dados/user_history/{server_name}/{channel_name}/{username}.csv")
+
+    df_user = df[df['autor'] == username].copy()
+
+    if df_user.empty:
+        print(f"Usuário '{username}' não encontrado no dataset.")
+        print("Usuários disponíveis:")
+        print(df['autor'].unique())
+        return
+
+    print(f"=== ANÁLISE DO USUÁRIO: {username} ===\n")
+    print(f"Total de mensagens: {len(df_user)}")
+    print(f"Mensagens com reações: {(df_user['reacoes'] > 0).sum()}")
+    print(f"Mensagens com anexos: {df_user['tem_anexo'].sum()}")
+    print(f"Mensagens que mencionam alguém: {df_user['menciona_alguem'].sum()}")
+
+    df_user['message_length'] = df_user['conteudo'].astype(str).str.len()
+    print(f"Tamanho médio das mensagens: {df_user['message_length'].mean():.1f} caracteres")
+
+    df_user['emoji_count'] = df_user['conteudo'].apply(count_emojis)
+    print(f"Total de emojis usados: {df_user['emoji_count'].sum()}")
+    print(f"Média de emojis por mensagem: {df_user['emoji_count'].mean():.2f}")
+
+    all_mentions = []
+    for mentions_str in df_user['mentioned_users'].dropna():
+        if mentions_str:
+            all_mentions.extend(mentions_str.split(','))
+    if all_mentions:
+        print(f"\nQuem {username} mais menciona:")
+        print(pd.Series(all_mentions).value_counts().head(5))
+
+    df_user['data'] = pd.to_datetime(df_user['data'])
+    df_user['hora'] = df_user['data'].dt.hour
+    print(f"\nHorários mais ativos (horário de Brasília):")
+    print(df_user['hora'].value_counts().head(5))

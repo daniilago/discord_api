@@ -1,15 +1,44 @@
 import discord
 import os
 from dotenv import load_dotenv
+from datetime import timezone, timedelta
 import pandas as pd
+import os
+
+BRASILIA = timezone(timedelta(hours=-3))
+
+def formatar_data(dt):
+    if dt is None:
+        return ""
+    return dt.astimezone(BRASILIA).strftime("%Y-%m-%d %H:%M:%S")
+
+os.makedirs("dados/channel_history", exist_ok=True)
+os.makedirs("dados/user_history", exist_ok=True)
+os.makedirs("dados/server_infos", exist_ok=True)
 
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
 CANAL_ID = int(os.getenv("CANAL_ID"))
 
-def collect():
+def descrever_conteudo(msg):
+    if msg.content:
+        return msg.content
+    if msg.attachments:
+        descricoes = []
+        for a in msg.attachments:
+            if a.content_type and a.content_type.startswith("image/"):
+                descricoes.append(f"[IMAGEM: {a.filename}]")
+            elif a.content_type and a.content_type.startswith("video/"):
+                descricoes.append(f"[VIDEO: {a.filename}]")
+            else:
+                descricoes.append(f"[ANEXO: {a.filename}]")
+        return " ".join(descricoes)
+    return ""
+
+def collect(username: str = None):
     mensagens = []
+    meta = {}
     intents = discord.Intents.default()
     intents.message_content = True
     client = discord.Client(intents=intents)
@@ -17,33 +46,124 @@ def collect():
     @client.event
     async def on_ready():
         print(f"Bot conectado como {client.user}")
+        guild = client.get_guild(int(os.getenv("SERVER_ID")))
         canal = client.get_channel(CANAL_ID)
+        meta['server'] = guild.name
+        meta['channel'] = canal.name
+        limite_history = None if username else 500
 
-        async for msg in canal.history(limit=500):
-            # Get mentioned usernames
+        async for msg in canal.history(limit=limite_history):
+            if username and str(msg.author) != username:
+                continue
+
             mentioned_users = [str(user) for user in msg.mentions]
-
-            # Get reply-to message ID if this message is a reply
-            reply_to_id = None
-            if msg.reference and msg.reference.message_id:
-                reply_to_id = msg.reference.message_id
+            reply_to_id = msg.reference.message_id if msg.reference and msg.reference.message_id else None
 
             mensagens.append({
                 "id": msg.id,
                 "autor": str(msg.author),
-                "conteudo": msg.content,
-                "data": msg.created_at,
+                "conteudo": descrever_conteudo(msg),
+                "data": formatar_data(msg.created_at),
                 "reacoes": sum(r.count for r in msg.reactions),
                 "tem_anexo": len(msg.attachments) > 0,
                 "menciona_alguem": len(msg.mentions) > 0,
                 "mentioned_users": ",".join(mentioned_users) if mentioned_users else "",
                 "reply_to_id": reply_to_id,
-                "message_length": len(msg.content),
+                "message_length": len(msg.content) if msg.content else 0,
             })
 
+            if username and len(mensagens) >= 500:
+                break
+
         df = pd.DataFrame(mensagens)
-        df.to_csv("discord_data.csv", index=False)
+
+        if username:
+            user_folder = f"dados/user_history/{guild.name}/{canal.name}"
+            os.makedirs(user_folder, exist_ok=True)
+            df.to_csv(f"{user_folder}/{username}.csv", index=False)
+        else:
+            server_folder = f"dados/channel_history/{guild.name}"
+            os.makedirs(server_folder, exist_ok=True)
+            df.to_csv(f"{server_folder}/{canal.name}.csv", index=False)
+
         print(f"{len(df)} mensagens salvas!")
         await client.close()
 
-    client.run(TOKEN)  
+    client.run(TOKEN)
+    return meta.get('server'), meta.get('channel')
+
+def collect_server_info():
+    intents = discord.Intents.default()
+    intents.message_content = True
+    intents.members = True  # necessário para pegar membros
+    client = discord.Client(intents=intents)
+
+    @client.event
+    async def on_ready():
+        guild = client.get_guild(int(os.getenv("SERVER_ID")))
+        # Cria pasta com o nome do servidor
+        server_folder = f"dados/server_infos/{guild.name}"
+        os.makedirs(server_folder, exist_ok=True)
+        print(f"Coletando informações do servidor: {guild.name}")
+
+        # --- Informações gerais do servidor ---
+        server_info = {
+            "nome": guild.name,
+            "id": guild.id,
+            "dono": str(guild.owner),
+            "dono_id": guild.owner_id,
+            "criado_em": formatar_data(guild.created_at),
+            "total_membros": guild.member_count,
+            "total_canais": len(guild.channels),
+            "total_cargos": len(guild.roles),
+            "descricao": guild.description or "",
+        }
+        pd.DataFrame([server_info]).to_csv(f"{server_folder}/info.csv", index=False)
+        print("Informações gerais salvas!")
+
+        # --- Membros ---
+        membros = []
+        for member in guild.members:
+            membros.append({
+                "id": member.id,
+                "nome": str(member.name),
+                "display_name": member.display_name,
+                "e_bot": member.bot,
+                "entrou_em": formatar_data(member.joined_at),
+                "conta_criada_em": formatar_data(member.created_at),
+                "cargos": ",".join([r.name for r in member.roles if r.name != "@everyone"]),
+            })
+        pd.DataFrame(membros).to_csv(f"{server_folder}/members.csv", index=False)
+        print(f"{len(membros)} membros salvos!")
+
+        # --- Canais ---
+        canais = []
+        for channel in guild.channels:
+            canais.append({
+                "id": channel.id,
+                "nome": channel.name,
+                "tipo": str(channel.type),
+                "categoria": channel.category.name if channel.category else "",
+            })
+        pd.DataFrame(canais).to_csv(f"{server_folder}/channels.csv", index=False)
+        print(f"{len(canais)} canais salvos!")
+
+        # --- Cargos/Roles ---
+        cargos = []
+        for role in guild.roles:
+            if role.name == "@everyone":
+                continue
+            cargos.append({
+                "id": role.id,
+                "nome": role.name,
+                "cor": str(role.colour),
+                "total_membros": len(role.members),
+                "e_admin": role.permissions.administrator,
+                "criado_em": formatar_data(role.created_at),
+            })
+        pd.DataFrame(cargos).to_csv(f"{server_folder}/roles.csv", index=False)
+        print(f"{len(cargos)} cargos salvos!")
+
+        await client.close()
+
+    client.run(TOKEN)
