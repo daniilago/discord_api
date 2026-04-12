@@ -1,6 +1,8 @@
 import pandas as pd
 import re
 
+root = "data"
+
 def count_emojis(text):
     if pd.isna(text):
         return 0
@@ -46,7 +48,7 @@ def most_mentioned_users(df, n=10):
     return pd.Series(dtype=int)
 
 def print_all_filters(server_name: str, channel_name: str):
-    df = pd.read_csv(f"dados/channel_history/{server_name}/{channel_name}.csv")
+    df = pd.read_csv(f"{root}/channel_history/{server_name}/{channel_name}.csv")
 
     print("=== HISTÓRICO GERAL DO CANAL ===\n")
 
@@ -87,7 +89,7 @@ def print_all_filters(server_name: str, channel_name: str):
         print(f"Mensagens que mencionam alguém: {df['menciona_alguem'].sum()}")
 
 def analyse_user(username: str, server_name: str, channel_name: str):
-    df = pd.read_csv(f"dados/user_history/{server_name}/{channel_name}/{username}.csv")
+    df = pd.read_csv(f"{root}/user_history/{server_name}/{channel_name}/{username}.csv")
 
     df_user = df[df['autor'] == username].copy()
 

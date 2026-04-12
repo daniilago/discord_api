@@ -12,9 +12,11 @@ def formatar_data(dt):
         return ""
     return dt.astimezone(BRASILIA).strftime("%Y-%m-%d %H:%M:%S")
 
-os.makedirs("dados/channel_history", exist_ok=True)
-os.makedirs("dados/user_history", exist_ok=True)
-os.makedirs("dados/server_infos", exist_ok=True)
+root = "data"
+
+os.makedirs(f"{root}/channel_history", exist_ok=True)
+os.makedirs(f"{root}/user_history", exist_ok=True)
+os.makedirs(f"{root}/server_infos", exist_ok=True)
 
 load_dotenv()
 
@@ -63,7 +65,7 @@ def collect(username: str = None):
                 "id": msg.id,
                 "autor": str(msg.author),
                 "conteudo": descrever_conteudo(msg),
-                "data": formatar_data(msg.created_at),
+                f"{root}": formatar_data(msg.created_at),
                 "reacoes": sum(r.count for r in msg.reactions),
                 "tem_anexo": len(msg.attachments) > 0,
                 "menciona_alguem": len(msg.mentions) > 0,
@@ -78,11 +80,11 @@ def collect(username: str = None):
         df = pd.DataFrame(mensagens)
 
         if username:
-            user_folder = f"dados/user_history/{guild.name}/{canal.name}"
+            user_folder = f"{root}/user_history/{guild.name}/{canal.name}"
             os.makedirs(user_folder, exist_ok=True)
             df.to_csv(f"{user_folder}/{username}.csv", index=False)
         else:
-            server_folder = f"dados/channel_history/{guild.name}"
+            server_folder = f"{root}/channel_history/{guild.name}"
             os.makedirs(server_folder, exist_ok=True)
             df.to_csv(f"{server_folder}/{canal.name}.csv", index=False)
 
@@ -102,7 +104,7 @@ def collect_server_info():
     async def on_ready():
         guild = client.get_guild(int(os.getenv("SERVER_ID")))
         # Cria pasta com o nome do servidor
-        server_folder = f"dados/server_infos/{guild.name}"
+        server_folder = f"{root}/server_infos/{guild.name}"
         os.makedirs(server_folder, exist_ok=True)
         print(f"Coletando informações do servidor: {guild.name}")
 
