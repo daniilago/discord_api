@@ -1,7 +1,6 @@
 import pandas as pd
 import re
-
-root = "data"
+from config import root
 
 def count_emojis(text):
     if pd.isna(text):

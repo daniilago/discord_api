@@ -3,16 +3,14 @@ import os
 from dotenv import load_dotenv
 from datetime import timezone, timedelta
 import pandas as pd
-import os
+from config import root
 
 BRASILIA = timezone(timedelta(hours=-3))
 
-def formatar_data(dt):
+def format_data(dt):
     if dt is None:
         return ""
     return dt.astimezone(BRASILIA).strftime("%Y-%m-%d %H:%M:%S")
-
-root = "data"
 
 os.makedirs(f"{root}/channel_history", exist_ok=True)
 os.makedirs(f"{root}/user_history", exist_ok=True)
@@ -23,7 +21,7 @@ load_dotenv()
 TOKEN = os.getenv("TOKEN")
 CANAL_ID = int(os.getenv("CANAL_ID"))
 
-def descrever_conteudo(msg):
+def describe_content(msg):
     if msg.content:
         return msg.content
     if msg.attachments:
@@ -52,7 +50,7 @@ def collect(username: str = None):
         canal = client.get_channel(CANAL_ID)
         meta['server'] = guild.name
         meta['channel'] = canal.name
-        limite_history = None if username else 500
+        limite_history = None if username else 1000
 
         async for msg in canal.history(limit=limite_history):
             if username and str(msg.author) != username:
@@ -64,8 +62,8 @@ def collect(username: str = None):
             mensagens.append({
                 "id": msg.id,
                 "autor": str(msg.author),
-                "conteudo": descrever_conteudo(msg),
-                f"{root}": formatar_data(msg.created_at),
+                "conteudo": describe_content(msg),
+                f"{root}": format_data(msg.created_at),
                 "reacoes": sum(r.count for r in msg.reactions),
                 "tem_anexo": len(msg.attachments) > 0,
                 "menciona_alguem": len(msg.mentions) > 0,
@@ -114,7 +112,7 @@ def collect_server_info():
             "id": guild.id,
             "dono": str(guild.owner),
             "dono_id": guild.owner_id,
-            "criado_em": formatar_data(guild.created_at),
+            "criado_em": format_data(guild.created_at),
             "total_membros": guild.member_count,
             "total_canais": len(guild.channels),
             "total_cargos": len(guild.roles),
@@ -131,8 +129,8 @@ def collect_server_info():
                 "nome": str(member.name),
                 "display_name": member.display_name,
                 "e_bot": member.bot,
-                "entrou_em": formatar_data(member.joined_at),
-                "conta_criada_em": formatar_data(member.created_at),
+                "entrou_em": format_data(member.joined_at),
+                "conta_criada_em": format_data(member.created_at),
                 "cargos": ",".join([r.name for r in member.roles if r.name != "@everyone"]),
             })
         pd.DataFrame(membros).to_csv(f"{server_folder}/members.csv", index=False)
@@ -161,7 +159,7 @@ def collect_server_info():
                 "cor": str(role.colour),
                 "total_membros": len(role.members),
                 "e_admin": role.permissions.administrator,
-                "criado_em": formatar_data(role.created_at),
+                "criado_em": format_data(role.created_at),
             })
         pd.DataFrame(cargos).to_csv(f"{server_folder}/roles.csv", index=False)
         print(f"{len(cargos)} cargos salvos!")

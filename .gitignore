@@ -7,8 +7,7 @@ __pycache__/
 *.so
 
 .env
-discord_data.csv
-dados/
+data/
 
 # Distribution / packaging
 .Python
