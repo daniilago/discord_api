@@ -8,8 +8,6 @@ __pycache__/
 
 .env
 data/
-graus.png
-rede.html
 
 # Distribution / packaging
 .Python

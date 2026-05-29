@@ -50,7 +50,7 @@ def collect(username: str = None):
         canal = client.get_channel(CANAL_ID)
         meta['server'] = guild.name
         meta['channel'] = canal.name
-        limite_history = None if username else 1000
+        limite_history = None if username else 10000
 
         async for msg in canal.history(limit=limite_history):
             if username and str(msg.author) != username:
