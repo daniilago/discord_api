@@ -7,7 +7,7 @@ from config import root
 os.makedirs("kdd_plots", exist_ok=True)
 
 # 1. Carregar os dados
-df = pd.read_csv(f"{root}/channel_history/Talvez seja um servidor/geral.csv")
+df = pd.read_csv(f"{root}/channel_history/[LPS] Los Pombos/│📗│chat-geraldo.csv")
 
 # 2. Criar novas features
 df['data'] = pd.to_datetime(df['data'])

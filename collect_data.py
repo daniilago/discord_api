@@ -55,6 +55,8 @@ def collect(username: str = None):
         async for msg in canal.history(limit=limite_history):
             if username and str(msg.author) != username:
                 continue
+            if not username and (not msg.content or len(msg.content.strip()) < 8):
+                continue
 
             mentioned_users = [str(user) for user in msg.mentions]
             reply_to_id = msg.reference.message_id if msg.reference and msg.reference.message_id else None
@@ -74,7 +76,8 @@ def collect(username: str = None):
 
             if username and len(mensagens) >= 500:
                 break
-
+            if not username and len(mensagens) >= 10000:
+                break
         df = pd.DataFrame(mensagens)
 
         if username:

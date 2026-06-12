@@ -24,7 +24,7 @@ if __name__ == "__main__":
     else:
         print("Opção inválida. Encerrando.")
 
-    G, G_undir = build_graph("Talvez seja um servidor", "geral")
+    G, G_undir = build_graph("[LPS] Los Pombos", "│📗│chat-geraldo")
 
     centralities = calculate_centralities(G_undir)
     eigen = centralities.set_index("user")["eigenvector"].to_dict()
